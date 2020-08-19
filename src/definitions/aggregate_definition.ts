@@ -1,10 +1,15 @@
-
 export interface AggregateDefinition {
   readonly name: string;
+  readonly valueObjects: Array<ValueObjectDefinition>;
   readonly attributes: Array<AttributeDefinition>;
   readonly dtos: Array<DataTransferDefinition>;
   readonly events: Array<EventDefinition>;
   readonly commands: Array<CommandDefinition>;
+}
+
+export interface ValueObjectDefinition {
+  readonly name: string;
+  readonly type: string;
 }
 
 export interface DataTransferDefinition {
@@ -14,7 +19,6 @@ export interface DataTransferDefinition {
 
 export interface AttributeDefinition {
   readonly name: string;
-  readonly type: string;
 }
 
 export interface EventDefinition {

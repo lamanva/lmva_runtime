@@ -1,8 +1,8 @@
-import { RuntimeDefinition, AggregateDefinition } from "./definitions/runtime_definition.ts";
+import {
+  RuntimeDefinition,
+  AggregateDefinition,
+} from "./definitions/runtime_definition.ts";
 import { Aggregate } from "./aggregate.ts";
-
-
-
 
 export class Runtime {
   private _definition: RuntimeDefinition;
@@ -15,9 +15,9 @@ export class Runtime {
 
   private loadAggregate = (definition: AggregateDefinition) => {
     return new Aggregate(definition);
-  }
+  };
 
   aggregate(name: string) {
-    return this._aggregates.find(a => a.name == name);
+    return this._aggregates.find((a) => a.name == name);
   }
 }

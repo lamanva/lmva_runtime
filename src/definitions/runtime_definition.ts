@@ -1,7 +1,7 @@
 import { AggregateDefinition } from "./aggregate_definition.ts";
 
-export {RuntimeDefinition, AggregateDefinition};
+export { RuntimeDefinition, AggregateDefinition };
 
 interface RuntimeDefinition {
-  aggregates: Array<AggregateDefinition>
+  aggregates: Array<AggregateDefinition>;
 }
