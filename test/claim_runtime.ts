@@ -25,61 +25,15 @@ export const testSource: RuntimeSourceTree = {
         {
           name: "create_claim",
           type: "create",
-          dto_name: "new_claim",
-          ast: {
-            "type": "Program",
-            "body": [
-              {
-                "type": "FunctionDeclaration",
-                "id": {
-                  "type": "Identifier",
-                  "name": "command",
-                },
-                "params": [
-                  {
-                    "type": "Identifier",
-                    "name": "expense_claim",
-                  },
-                  {
-                    "type": "Identifier",
-                    "name": "title",
-                  },
-                ],
-                "body": {
-                  "type": "BlockStatement",
-                  "body": [
-                    {
-                      "type": "ExpressionStatement",
-                      "expression": {
-                        "type": "AssignmentExpression",
-                        "operator": "=",
-                        "left": {
-                          "type": "MemberExpression",
-                          "computed": false,
-                          "object": {
-                            "type": "Identifier",
-                            "name": "expense_claim",
-                          },
-                          "property": {
-                            "type": "Identifier",
-                            "name": "title",
-                          },
-                        },
-                        "right": {
-                          "type": "Identifier",
-                          "name": "title",
-                        },
-                      },
-                    },
-                  ],
-                },
-                "generator": false,
-                "expression": false,
-                "async": false,
-              },
+          dtoName: "new_claim",
+          functionSource: `const agg = {
+            type: aggregateName,
+            identifier: "xyz",
+            attributes: [
+              { name: "title", type: "string", value: "My claim" },
             ],
-            "sourceType": "script",
-          },
+          };
+          return agg;` 
         },
       ],
     },

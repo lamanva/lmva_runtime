@@ -29,27 +29,27 @@ export class Runtime {
   };
 
   event = (
-    aggregate_name: string,
+    aggregateName: string,
     name: string,
   ): Result<EventDeclaration, RuntimeError> => {
-    return this.aggregate(aggregate_name).match({
+    return this.aggregate(aggregateName).match({
       ok: (val) => val.event(name),
       err: (val) => Err(val),
     });
   };
 
   command = (
-    aggregate_name: string,
+    aggregateName: string,
     name: string,
   ): Result<CommandDeclaration, RuntimeError> => {
-    return this.aggregate(aggregate_name).match({
+    return this.aggregate(aggregateName).match({
       ok: (val) => val.command(name),
       err: (val) => Err(val),
     });
   };
 
   execute = (command: Command): Result<Aggregate, RuntimeError[]> => {
-    return this.command(command.aggregate_name, command.name).match({
+    return this.command(command.aggregateName, command.name).match({
       ok: (res) => res.execute(command),
       err: (res) => Err([res]),
     });

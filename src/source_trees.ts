@@ -36,6 +36,6 @@ export interface EventSourceTree {
 export interface CommandSourceTree {
   readonly name: string;
   readonly type: string;
-  readonly dto_name: string;
-  readonly ast: object;
+  readonly dtoName: string;
+  readonly functionSource: string;
 }

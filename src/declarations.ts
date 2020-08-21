@@ -93,7 +93,7 @@ class AggregateDeclaration {
   };
 
   private loadCommand = (source: CommandSourceTree) => {
-    return new CommandDeclaration(source, this.dto(source.dto_name));
+    return new CommandDeclaration(source, this.dto(source.dtoName));
   };
 }
 
@@ -232,12 +232,12 @@ class CommandDeclaration {
     const errs = this._dataTransferDeclaration !== undefined
       ? this._dataTransferDeclaration.validateDto(command.dto)
       : [];
-    const aggregate: Aggregate = {
-      identifier: "xyz",
-      attributes: [
-        { name: "title", type: "string", value: "My claim" },
-      ],
-    };
-    return errs.length == 0 ? Ok(aggregate) : Err(errs);
+    return errs.length == 0 ? Ok(this.executeScript(command)) : Err(errs);
   };
+
+  private executeScript(command: Command) {
+    return this._source.type == "create" ?
+    Function("aggregateName", this._source.functionSource)(command.aggregateName) :
+    Function("dto", this._source.functionSource)(command.dto);
+  }
 }
