@@ -1,6 +1,6 @@
-import { RuntimeSourceTree } from "../src/source_trees.ts";
+import { RuntimeNode } from "../src/source_nodes.ts";
 
-export const testSource: RuntimeSourceTree = {
+export const testSource: RuntimeNode = {
   aggregates: [
     {
       name: "expense_claim",
@@ -8,13 +8,13 @@ export const testSource: RuntimeSourceTree = {
         { name: "title", scalarType: "String" },
       ],
       attributes: [
-        { name: "title" },
+        { valueTypeName: "title" },
       ],
       dtos: [
         {
           name: "new_claim",
           attributes: [
-            { name: "title" },
+            { valueTypeName: "title" },
           ],
         },
       ],
@@ -27,7 +27,7 @@ export const testSource: RuntimeSourceTree = {
           type: "create",
           dtoName: "new_claim",
           functionSource: `const agg = {
-            type: aggregateName,
+            aggregateName: aggregateName,
             identifier: "xyz",
             attributes: [
               { name: "title", type: "string", value: "My claim" },

@@ -1,4 +1,4 @@
-import { RuntimeSourceTree, AggregateSourceTree } from "./source_trees.ts";
+import { RuntimeNode, AggregateTypeNode } from "./source_nodes.ts";
 import {
   AggregateDeclaration,
   EventDeclaration,
@@ -11,15 +11,15 @@ import { Result, Err, Ok } from "https://deno.land/x/monads/mod.ts";
 export { AggregateDeclaration };
 
 export class Runtime {
-  private source: RuntimeSourceTree;
+  private source: RuntimeNode;
   private _aggregates: Array<AggregateDeclaration>;
 
-  constructor(source: RuntimeSourceTree) {
+  constructor(source: RuntimeNode) {
     this.source = source;
     this._aggregates = source.aggregates.map(this.loadAggregate);
   }
 
-  private loadAggregate = (source: AggregateSourceTree) => {
+  private loadAggregate = (source: AggregateTypeNode) => {
     return new AggregateDeclaration(source);
   };
 

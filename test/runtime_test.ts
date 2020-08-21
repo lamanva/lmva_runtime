@@ -26,7 +26,7 @@ Deno.test("Send invalid create command", () => {
   assertEquals(result.unwrapErr()[0].code, "command_unk");
 });
 
-Deno.test("Send valid command with invalid dto", () => {
+Deno.test("Send valid command with unknown attribute", () => {
   var result = runtime.execute(
     {
       aggregateName: "expense_claim",

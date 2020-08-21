@@ -1,11 +1,11 @@
 import {
-  ValueObjectSourceTree,
-  AttributeSourceTree,
-  AggregateSourceTree,
-  EventSourceTree,
-  CommandSourceTree,
-  DataTransferSourceTree,
-} from "./source_trees.ts";
+  ValueTypeNode,
+  AttributeNode,
+  AggregateTypeNode,
+  EventTypeNode,
+  CommandTypeNode,
+  DataTransferTypeNode,
+} from "./source_nodes.ts";
 import { Command } from "./command.ts";
 import { Aggregate } from "./aggregate.ts";
 import {
@@ -29,12 +29,12 @@ const typeMap = [
 ];
 
 class AggregateDeclaration {
-  private _source: AggregateSourceTree;
+  private _source: AggregateTypeNode;
   private _valueDeclarations: Array<ValueDeclaration>;
   private _eventDeclarations: Array<EventDeclaration>;
   private _commandDeclarations: Array<CommandDeclaration>;
   private _dataTransferDeclarations: Array<DataTransferDeclaration>;
-  constructor(source: AggregateSourceTree) {
+  constructor(source: AggregateTypeNode) {
     this._source = source;
     this._valueDeclarations = source.valueObjects.map(this.loadValueObject);
     this._dataTransferDeclarations = source.dtos.map(
@@ -67,12 +67,12 @@ class AggregateDeclaration {
     return result ? Some(result) : None;
   };
 
-  private loadValueObject = (source: ValueObjectSourceTree) => {
+  private loadValueObject = (source: ValueTypeNode) => {
     return new ValueDeclaration(source);
   };
 
   private loadDataTransferObject = (
-    source: DataTransferSourceTree | undefined,
+    source: DataTransferTypeNode | undefined,
   ) => {
     return new DataTransferDeclaration(
       source,
@@ -80,26 +80,26 @@ class AggregateDeclaration {
     );
   };
 
-  private loadAttribute = (source: AttributeSourceTree) => {
-    const attr = this.valueDeclaration(source.name).match({
+  private loadAttribute = (source: AttributeNode) => {
+    const attr = this.valueDeclaration(source.valueTypeName).match({
       some: (res) => res,
       none: new ValueDeclaration({ name: "", scalarType: "String" }),
     });
     return new AttributeDeclaration(source, attr);
   };
 
-  private loadEvent = (source: EventSourceTree) => {
+  private loadEvent = (source: EventTypeNode) => {
     return new EventDeclaration(source, this.dto(source.name));
   };
 
-  private loadCommand = (source: CommandSourceTree) => {
+  private loadCommand = (source: CommandTypeNode) => {
     return new CommandDeclaration(source, this.dto(source.dtoName));
   };
 }
 
 class ValueDeclaration {
-  private _source: ValueObjectSourceTree;
-  constructor(source: ValueObjectSourceTree) {
+  private _source: ValueTypeNode;
+  constructor(source: ValueTypeNode) {
     this._source = source;
   }
   get name() {
@@ -118,10 +118,10 @@ class ValueDeclaration {
 }
 
 class DataTransferDeclaration {
-  private _source: DataTransferSourceTree | undefined;
+  private _source: DataTransferTypeNode | undefined;
   private _attributeDeclarations: Array<AttributeDeclaration>;
   constructor(
-    source: DataTransferSourceTree | undefined,
+    source: DataTransferTypeNode | undefined,
     attributes: AttributeDeclaration[] | undefined,
   ) {
     this._source = source;
@@ -131,18 +131,26 @@ class DataTransferDeclaration {
     return this._source?.name || "";
   }
   attributeDefinition(name: string): Option<AttributeDeclaration> {
-    const attr = this._attributeDeclarations?.find((a) => a.name == name);
+    const attr = this._attributeDeclarations.find((a) => a.name == name);
     return attr ? Some(attr) : None;
   }
-  validateDto = (dto: object): RuntimeError[] => {
+  validateDto = (dto: object): Option<RuntimeError[]> => {
     const f = this.validateRequiredAttributes(dto);
-    const reqErrors = this._attributeDeclarations?.map(f).filter((r) =>
+    const reqErrors = this._attributeDeclarations.map(f).filter((r) =>
       r.isSome()
     ).map((r) => r.unwrap());
-    const valueErrs = Object.entries(dto).map(this.validateAttributeValue)
+
+    const valErrors = Object.entries(dto).map(this.validateAttributeValue)
       .filter((r) => r.isSome()).map((r) => r.unwrap());
-    return reqErrors.concat(valueErrs);
+    
+    const allErrors = reqErrors.concat(valErrors);
+
+    return allErrors.length > 0 ?
+    Some(allErrors) :
+    None;
   };
+
+
   private validateAttributeValue = (
     kv: [string, any],
   ): Option<RuntimeError> => {
@@ -180,10 +188,10 @@ class DataTransferDeclaration {
 }
 
 class AttributeDeclaration {
-  private _source: AttributeSourceTree;
+  private _source: AttributeNode;
   private _valueObject: ValueDeclaration;
   constructor(
-    source: AttributeSourceTree,
+    source: AttributeNode,
     valueObject: ValueDeclaration | undefined,
   ) {
     this._source = source;
@@ -191,7 +199,7 @@ class AttributeDeclaration {
       new ValueDeclaration({ name: "", scalarType: "String" });
   }
   get name() {
-    return this._source.name;
+    return this._source.valueTypeName;
   }
   get valueDeclaration(): ValueDeclaration {
     return this._valueObject;
@@ -199,10 +207,10 @@ class AttributeDeclaration {
 }
 
 class EventDeclaration {
-  private _source: EventSourceTree;
+  private _source: EventTypeNode;
   private _dto: DataTransferDeclaration | undefined;
   constructor(
-    source: EventSourceTree,
+    source: EventTypeNode,
     dto: DataTransferDeclaration | undefined,
   ) {
     this._source = source;
@@ -215,25 +223,41 @@ class EventDeclaration {
 }
 
 class CommandDeclaration {
-  private _source: CommandSourceTree;
-  private _dataTransferDeclaration: DataTransferDeclaration | undefined;
+  private _source: CommandTypeNode;
+  private _dataTransferDeclaration: DataTransferDeclaration;
   constructor(
-    source: CommandSourceTree,
+    source: CommandTypeNode,
     dataTransferDeclaration: DataTransferDeclaration | undefined,
   ) {
     this._source = source;
-    this._dataTransferDeclaration = dataTransferDeclaration;
+    this._dataTransferDeclaration = dataTransferDeclaration || new DataTransferDeclaration({name: "", attributes: []}, []);
   }
   get name() {
     return this._source.name || "";
   }
 
   execute = (command: Command): Result<Aggregate, RuntimeError[]> => {
+    /*
     const errs = this._dataTransferDeclaration !== undefined
       ? this._dataTransferDeclaration.validateDto(command.dto)
       : [];
     return errs.length == 0 ? Ok(this.executeScript(command)) : Err(errs);
+    */
+    return this._dataTransferDeclaration.validateDto(command.dto).match({
+      none: this.executeCommand(command),
+      some: res => Err(res)
+    })
   };
+
+  private executeCommand = (command: Command): Result<Aggregate, RuntimeError[]> => {
+    try {
+      const agg = this.executeScript(command);
+      return Ok(agg);
+    }
+    catch(e) {
+      return Err([{code: "function_syn"}])
+    }
+  }
 
   private executeScript(command: Command) {
     return this._source.type == "create" ?
