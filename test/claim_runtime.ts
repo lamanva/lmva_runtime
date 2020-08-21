@@ -1,11 +1,11 @@
-import { RuntimeDefinition } from "../src/definitions/runtime_definition.ts";
+import { RuntimeSourceTree } from "../src/source_trees.ts";
 
-export const testDefinition: RuntimeDefinition = {
+export const testSource: RuntimeSourceTree = {
   aggregates: [
     {
       name: "expense_claim",
       valueObjects: [
-        { name: "title", type: "string" },
+        { name: "title", scalarType: "String" },
       ],
       attributes: [
         { name: "title" },
@@ -25,7 +25,7 @@ export const testDefinition: RuntimeDefinition = {
         {
           name: "create_claim",
           type: "create",
-          dto: "new_claim",
+          dto_name: "new_claim",
           ast: {
             "type": "Program",
             "body": [

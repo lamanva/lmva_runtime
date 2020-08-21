@@ -1,23 +1,68 @@
+import { RuntimeSourceTree, AggregateSourceTree } from "./source_trees.ts";
 import {
-  RuntimeDefinition,
-  AggregateDefinition,
-} from "./definitions/runtime_definition.ts";
+  AggregateDeclaration,
+  EventDeclaration,
+  CommandDeclaration,
+} from "./declarations.ts";
+import { Command } from "./command.ts";
 import { Aggregate } from "./aggregate.ts";
+import { Result, Err, Ok } from "https://deno.land/x/monads/mod.ts";
+
+export { AggregateDeclaration };
 
 export class Runtime {
-  private _definition: RuntimeDefinition;
-  private _aggregates: Array<Aggregate>;
+  private source: RuntimeSourceTree;
+  private _aggregates: Array<AggregateDeclaration>;
 
-  constructor(definition: RuntimeDefinition) {
-    this._definition = definition;
-    this._aggregates = definition.aggregates.map(this.loadAggregate);
+  constructor(source: RuntimeSourceTree) {
+    this.source = source;
+    this._aggregates = source.aggregates.map(this.loadAggregate);
   }
 
-  private loadAggregate = (definition: AggregateDefinition) => {
-    return new Aggregate(definition);
+  private loadAggregate = (source: AggregateSourceTree) => {
+    return new AggregateDeclaration(source);
   };
 
-  aggregate(name: string) {
-    return this._aggregates.find((a) => a.name == name);
+  aggregate = (name: string): Result<AggregateDeclaration, RuntimeError> => {
+    const found = this._aggregates.find((a) => a.name == name);
+    return found ? Ok(found) : Err({ code: "aggregate_unk" });
+  };
+
+  event = (
+    aggregate_name: string,
+    name: string,
+  ): Result<EventDeclaration, RuntimeError> => {
+    return this.aggregate(aggregate_name).match({
+      ok: (val) => val.event(name),
+      err: (val) => Err(val),
+    });
+  };
+
+  command = (
+    aggregate_name: string,
+    name: string,
+  ): Result<CommandDeclaration, RuntimeError> => {
+    return this.aggregate(aggregate_name).match({
+      ok: (val) => val.command(name),
+      err: (val) => Err(val),
+    });
+  };
+
+  execute = (command: Command): Result<Aggregate, RuntimeError[]> => {
+    return this.command(command.aggregate_name, command.name).match({
+      ok: (res) => res.execute(command),
+      err: (res) => Err([res]),
+    });
+  };
+
+  /*
+  execute(aggregate_name: string, command_name: string, dto: object): Result<Aggregate, RuntimeError> {
+    
+   
   }
+  */
+}
+
+export interface RuntimeError {
+  code: string;
 }
