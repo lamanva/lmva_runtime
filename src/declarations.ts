@@ -7,6 +7,7 @@ import {
   DataTransferTypeNode,
 } from "./source_nodes.ts";
 import { Command } from "./command.ts";
+import { AggregateConfig } from "./runtime_config.ts";
 import { Aggregate } from "./aggregate.ts";
 import {
   Result,
@@ -17,6 +18,7 @@ import {
   Some,
 } from "https://deno.land/x/monads/mod.ts";
 import { RuntimeError } from "./runtime.ts";
+import { EventStore, eventStoreFactory } from "./event_store/event_store.ts";
 
 export { AggregateDeclaration, EventDeclaration, CommandDeclaration };
 export type ScalarType = "Int" | "Float" | "String" | "Boolean";
@@ -30,12 +32,24 @@ const typeMap = [
 
 class AggregateDeclaration {
   private _source: AggregateTypeNode;
+  private _config: AggregateConfig;
+  private _eventStore: EventStore;
   private _valueDeclarations: Array<ValueDeclaration>;
   private _eventDeclarations: Array<EventDeclaration>;
   private _commandDeclarations: Array<CommandDeclaration>;
   private _dataTransferDeclarations: Array<DataTransferDeclaration>;
-  constructor(source: AggregateTypeNode) {
+
+  static create = (source: AggregateTypeNode, config: AggregateConfig): Result<AggregateDeclaration, RuntimeError> => {
+    const eventStore = eventStoreFactory(config);
+    return eventStore.isOk() 
+    ? Ok(new AggregateDeclaration(source, config, eventStore.unwrap()))
+    : Err(eventStore.unwrapErr())
+  }
+
+  constructor(source: AggregateTypeNode, config: AggregateConfig, eventStore: EventStore) {
     this._source = source;
+    this._config = config;
+    this._eventStore = eventStore;
     this._valueDeclarations = source.valueObjects.map(this.loadValueObject);
     this._dataTransferDeclarations = source.dtos.map(
       this.loadDataTransferObject,
@@ -145,9 +159,9 @@ class DataTransferDeclaration {
     
     const allErrors = reqErrors.concat(valErrors);
 
-    return allErrors.length > 0 ?
-    Some(allErrors) :
-    None;
+    return allErrors.length > 0 
+      ? Some(allErrors) 
+      : None;
   };
 
 
@@ -208,18 +222,29 @@ class AttributeDeclaration {
 
 class EventDeclaration {
   private _source: EventTypeNode;
-  private _dto: DataTransferDeclaration | undefined;
+  private _dataTransferDeclaration: DataTransferDeclaration;
   constructor(
     source: EventTypeNode,
-    dto: DataTransferDeclaration | undefined,
+    dto: DataTransferDeclaration | undefined
   ) {
     this._source = source;
-    this._dto = dto;
+    this._dataTransferDeclaration = dto || new DataTransferDeclaration({name: "", attributes: []}, []);;
   }
 
   get name() {
     return this._source.name || "";
   }
+
+  emit = (dto: object): Option<RuntimeError[]> => {
+    return this._dataTransferDeclaration.validateDto(dto).match({
+      some: r => Some(r),
+      none: this.emitEvent(dto)
+    })  
+  }
+
+  private emitEvent(dto: object): Option<RuntimeError[]> {
+    return None;
+  } 
 }
 
 class CommandDeclaration {
@@ -237,12 +262,6 @@ class CommandDeclaration {
   }
 
   execute = (command: Command): Result<Aggregate, RuntimeError[]> => {
-    /*
-    const errs = this._dataTransferDeclaration !== undefined
-      ? this._dataTransferDeclaration.validateDto(command.dto)
-      : [];
-    return errs.length == 0 ? Ok(this.executeScript(command)) : Err(errs);
-    */
     return this._dataTransferDeclaration.validateDto(command.dto).match({
       none: this.executeCommand(command),
       some: res => Err(res)

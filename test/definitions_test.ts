@@ -1,8 +1,9 @@
 import { assertEquals } from "https://deno.land/std/testing/asserts.ts";
 import { Runtime } from "../src/runtime.ts";
-import { testSource } from "./claim_runtime.ts";
+import { testSource, testConfig } from "./claim_runtime.ts";
+import { MemEventStore } from "../src/event_store/event_store.ts";
 
-const runtime = new Runtime(testSource);
+const runtime = (Runtime.create(testSource, testConfig)).unwrap();
 
 Deno.test("Successfully query aggregate definition", () => {
   const result = runtime.aggregate("expense_claim");

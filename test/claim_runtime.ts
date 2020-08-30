@@ -1,4 +1,14 @@
 import { RuntimeNode } from "../src/source_nodes.ts";
+import { RuntimeConfig } from "../src/runtime_config.ts";
+
+export const testConfig = {
+  aggregates: [
+    {
+      name: "expense_claim",
+      eventStore: "MemEventStore"   
+    }
+  ]
+}
 
 export const testSource: RuntimeNode = {
   aggregates: [
