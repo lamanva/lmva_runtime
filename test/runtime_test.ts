@@ -13,7 +13,7 @@ Deno.test("Send valid create command", () => {
       dto: { title: "My claim" },
     },
   );
-  assertEquals(result.unwrap().attributes[0].value, "My claim");
+  assertEquals(typeof result.unwrap(), "string", "returns a guid as a string");
 });
 
 Deno.test("Send invalid create command", () => {

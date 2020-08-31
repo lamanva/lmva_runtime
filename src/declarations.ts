@@ -19,6 +19,7 @@ import {
 } from "https://deno.land/x/monads/mod.ts";
 import { RuntimeError } from "./runtime.ts";
 import { EventStore, eventStoreFactory } from "./event_store/event_store.ts";
+import { v4 } from "https://deno.land/std/uuid/mod.ts";
 
 export { AggregateDeclaration, EventDeclaration, CommandDeclaration };
 export type ScalarType = "Int" | "Float" | "String" | "Boolean";
@@ -261,17 +262,20 @@ class CommandDeclaration {
     return this._source.name || "";
   }
 
-  execute = (command: Command): Result<Aggregate, RuntimeError[]> => {
+  execute = (command: Command): Result<string, RuntimeError[]> => {
     return this._dataTransferDeclaration.validateDto(command.dto).match({
       none: this.executeCommand(command),
       some: res => Err(res)
     })
   };
 
-  private executeCommand = (command: Command): Result<Aggregate, RuntimeError[]> => {
+  private executeCommand = (command: Command): Result<string, RuntimeError[]> => {
     try {
-      const agg = this.executeScript(command);
-      return Ok(agg);
+      const guid: string = command.aggregateId
+      ? command.aggregateId
+      : String(v4.generate())
+      this.executeScript(command);
+      return Ok(guid);
     }
     catch(e) {
       return Err([{code: "function_syn"}])
@@ -279,8 +283,6 @@ class CommandDeclaration {
   }
 
   private executeScript(command: Command) {
-    return this._source.type == "create" ?
-    Function("aggregateName", this._source.functionSource)(command.aggregateName) :
-    Function("dto", this._source.functionSource)(command.dto);
+    Function("aggregateName", this._source.functionSource)(command.aggregateName);
   }
 }

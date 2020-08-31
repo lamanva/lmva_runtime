@@ -68,10 +68,10 @@ export class Runtime {
     });
   };
 
-  execute = (command: Command): Result<Aggregate, RuntimeError[]> => {
+  execute = (command: Command): Result<string, RuntimeError[]> => {
     return this.command(command.aggregateName, command.name).match({
       ok: (res) => res.execute(command),
-      err: (res) => Err([res]),
+      err: (res) => Err([res])
     });
   };
 
