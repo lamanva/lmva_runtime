@@ -20,6 +20,7 @@ import {
 import { RuntimeError } from "./runtime.ts";
 import { EventStore, eventStoreFactory } from "./event_store/event_store.ts";
 import { v4 } from "https://deno.land/std/uuid/mod.ts";
+import { filterErrs, filterOks } from './utils.ts';
 
 export { AggregateDeclaration, EventDeclaration, CommandDeclaration };
 export type ScalarType = "Int" | "Float" | "String" | "Boolean";
@@ -31,32 +32,55 @@ const typeMap = [
   ["Boolean", "boolean"],
 ];
 
+interface AggregateParams {
+  readonly source: AggregateTypeNode;
+  readonly config: AggregateConfig;
+  readonly eventStore: EventStore;
+  readonly valueTypes: ValueTypeDeclaration[];
+  readonly dataTransferClasses: DataTransferDeclaration[];
+  readonly eventTypes: EventDeclaration[];
+  readonly commandTypes: CommandDeclaration[];
+}
+
 class AggregateDeclaration {
   private _source: AggregateTypeNode;
   private _config: AggregateConfig;
   private _eventStore: EventStore;
-  private _valueDeclarations: Array<ValueDeclaration>;
+  private _valueDeclarations: Array<ValueTypeDeclaration>;
   private _eventDeclarations: Array<EventDeclaration>;
   private _commandDeclarations: Array<CommandDeclaration>;
   private _dataTransferDeclarations: Array<DataTransferDeclaration>;
 
   static create = (source: AggregateTypeNode, config: AggregateConfig): Result<AggregateDeclaration, RuntimeError> => {
     const eventStore = eventStoreFactory(config);
-    return eventStore.isOk() 
-    ? Ok(new AggregateDeclaration(source, config, eventStore.unwrap()))
-    : Err(eventStore.unwrapErr())
+    const valueTypes = source.valueObjects.map(AggregateDeclaration.valueDeclarations);
+    const attributes = source.attributes.map(AttributeDeclaration.create(valueTypes));
+    const dtts = source.dtos.map(DataTransferDeclaration.create(valueTypes));
+    const dttsOk = filterOks(dtts) as DataTransferDeclaration[]; 
+    const events = source.events.map(EventDeclaration.create(dttsOk));
+    const commands = source.commands.map(CommandDeclaration.create(dttsOk)); 
+    const errs = filterErrs(attributes).concat(filterErrs(dtts)).concat(filterErrs(events)).concat(filterErrs(commands));
+    return errs.length > 0
+    ? Err(eventStore.unwrapErr())
+    : Ok(new AggregateDeclaration({
+      source, 
+      config,
+      eventStore: eventStore.unwrap(), 
+      valueTypes, 
+      dataTransferClasses: filterOks(dtts),
+      eventTypes: filterOks(events),
+      commandTypes: filterOks(commands)
+    }));
   }
 
-  constructor(source: AggregateTypeNode, config: AggregateConfig, eventStore: EventStore) {
-    this._source = source;
-    this._config = config;
-    this._eventStore = eventStore;
-    this._valueDeclarations = source.valueObjects.map(this.loadValueObject);
-    this._dataTransferDeclarations = source.dtos.map(
-      this.loadDataTransferObject,
-    );
-    this._eventDeclarations = source.events.map(this.loadEvent);
-    this._commandDeclarations = source.commands.map(this.loadCommand);
+  constructor(params: AggregateParams) {
+    this._source = params.source;
+    this._config = params.config;
+    this._eventStore = params.eventStore;
+    this._valueDeclarations = params.valueTypes;
+    this._dataTransferDeclarations = params.dataTransferClasses;
+    this._eventDeclarations = params.eventTypes;
+    this._commandDeclarations = params.commandTypes;
   }
 
   get name() {
@@ -77,28 +101,28 @@ class AggregateDeclaration {
     return this._dataTransferDeclarations.find((d) => d.name == name);
   };
 
-  valueDeclaration = (name: string): Option<ValueDeclaration> => {
+  valueDeclaration = (name: string): Option<ValueTypeDeclaration> => {
     const result = this._valueDeclarations.find((v) => v.name == name);
     return result ? Some(result) : None;
   };
 
-  private loadValueObject = (source: ValueTypeNode) => {
-    return new ValueDeclaration(source);
+  static valueDeclarations = (source: ValueTypeNode) => {
+    return new ValueTypeDeclaration(source);
+  }
+
+  private loadValueDeclaration = (source: ValueTypeNode) => {
+    return new ValueTypeDeclaration(source);
   };
 
-  private loadDataTransferObject = (
-    source: DataTransferTypeNode | undefined,
-  ) => {
-    return new DataTransferDeclaration(
-      source,
-      source?.attributes.map(this.loadAttribute),
-    );
-  };
+  static dataTransferTypes = (source: DataTransferTypeNode) => {
+    
+  }
+
 
   private loadAttribute = (source: AttributeNode) => {
     const attr = this.valueDeclaration(source.valueTypeName).match({
       some: (res) => res,
-      none: new ValueDeclaration({ name: "", scalarType: "String" }),
+      none: new ValueTypeDeclaration({ name: "", scalarType: "String" }),
     });
     return new AttributeDeclaration(source, attr);
   };
@@ -112,7 +136,7 @@ class AggregateDeclaration {
   };
 }
 
-class ValueDeclaration {
+class ValueTypeDeclaration {
   private _source: ValueTypeNode;
   constructor(source: ValueTypeNode) {
     this._source = source;
@@ -133,14 +157,29 @@ class ValueDeclaration {
 }
 
 class DataTransferDeclaration {
+
+  static create = (valueTypes: ValueTypeDeclaration[]) => {
+    return (source: DataTransferTypeNode): Result<DataTransferDeclaration, RuntimeError[]> => {
+      const createAttributeFn = AttributeDeclaration.create(valueTypes);
+      const results = source.attributes.map(createAttributeFn);
+      const attrErrs = results.filter(a => a.isErr()).map(a => a.unwrapErr());
+      const attrs = attrErrs.length > 0 ? [] : results.filter(a => a.isOk).map(a => a.unwrap());
+      return attrErrs.length > 0
+      ? Err(attrErrs)
+      : Ok(new DataTransferDeclaration(source, attrs))
+    }
+  }
+
+
+
   private _source: DataTransferTypeNode | undefined;
   private _attributeDeclarations: Array<AttributeDeclaration>;
   constructor(
-    source: DataTransferTypeNode | undefined,
-    attributes: AttributeDeclaration[] | undefined,
+    source: DataTransferTypeNode,
+    attributes: AttributeDeclaration[],
   ) {
     this._source = source;
-    this._attributeDeclarations = attributes || [];
+    this._attributeDeclarations = attributes;
   }
   get name() {
     return this._source?.name || "";
@@ -204,19 +243,29 @@ class DataTransferDeclaration {
 
 class AttributeDeclaration {
   private _source: AttributeNode;
-  private _valueObject: ValueDeclaration;
+  private _valueObject: ValueTypeDeclaration;
+
+  static create = (valueTypes: ValueTypeDeclaration[]) => {
+    return (source: AttributeNode): Result<AttributeDeclaration, RuntimeError> => {
+      const valueType = valueTypes.find(v => v.name == source.valueTypeName);
+      return valueType
+      ? Ok(new AttributeDeclaration(source, valueType))
+      : Err({code: "value_type_unk"});
+    }
+  }
+
   constructor(
     source: AttributeNode,
-    valueObject: ValueDeclaration | undefined,
+    valueObject: ValueTypeDeclaration | undefined,
   ) {
     this._source = source;
     this._valueObject = valueObject ||
-      new ValueDeclaration({ name: "", scalarType: "String" });
+      new ValueTypeDeclaration({ name: "", scalarType: "String" });
   }
   get name() {
     return this._source.valueTypeName;
   }
-  get valueDeclaration(): ValueDeclaration {
+  get valueDeclaration(): ValueTypeDeclaration {
     return this._valueObject;
   }
 }
@@ -224,6 +273,16 @@ class AttributeDeclaration {
 class EventDeclaration {
   private _source: EventTypeNode;
   private _dataTransferDeclaration: DataTransferDeclaration;
+
+  static create = (dtos: DataTransferDeclaration[]) => {
+    return (source: EventTypeNode): Result<EventDeclaration, RuntimeError> => {
+      const dto = dtos.find(d => d.name == source.dto);
+      return dtos.length > 0
+      ? Ok(new EventDeclaration(source, dto))
+      : Err({code: "data_type_unk"});
+    }
+  }
+
   constructor(
     source: EventTypeNode,
     dto: DataTransferDeclaration | undefined
@@ -251,6 +310,17 @@ class EventDeclaration {
 class CommandDeclaration {
   private _source: CommandTypeNode;
   private _dataTransferDeclaration: DataTransferDeclaration;
+
+  static create = (dtts: DataTransferDeclaration[]) => {
+    return (source: CommandTypeNode) => {
+      const dtt = dtts.find(d => d.name == source.dtoName);
+      return dtts.length > 0
+      ? Ok(new CommandDeclaration(source, dtt))
+      : Err({code: "data_type_unk"});
+    }
+  }
+
+
   constructor(
     source: CommandTypeNode,
     dataTransferDeclaration: DataTransferDeclaration | undefined,

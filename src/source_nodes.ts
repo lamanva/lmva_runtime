@@ -37,5 +37,6 @@ export interface CommandTypeNode {
   readonly name: string;
   readonly type: string;
   readonly dtoName: string;
+  readonly events: [string];
   readonly functionSource: string;
 }

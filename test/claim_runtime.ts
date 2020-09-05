@@ -36,6 +36,9 @@ export const testSource: RuntimeNode = {
           name: "create_claim",
           type: "create",
           dtoName: "new_claim",
+          events: [
+            "claim_created"
+          ],
           functionSource: `const agg = {
             aggregateName: aggregateName,
             identifier: "xyz",
